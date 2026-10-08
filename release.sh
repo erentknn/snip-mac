@@ -1,6 +1,5 @@
 #!/bin/bash
 # Builds a signed, notarized Snip-<version>.dmg (Apple Silicon + Intel) into ./dist.
-# Pass --publish to also create a GitHub release for it.
 set -euo pipefail
 cd "$(dirname "$0")"
 
