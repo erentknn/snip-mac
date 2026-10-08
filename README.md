@@ -35,22 +35,27 @@ Snip is a small native menu-bar app (Swift, AppKit, ScreenCaptureKit) with no de
 
 In the editor: ⌘C copy, ⌘S save, ⌘Z / ⇧⌘Z undo/redo, ⌘⌫ delete, ⌘W close.
 
-## Requirements
+## Download
 
-macOS 14 (Sonoma) or later, and Xcode or the Xcode Command Line Tools to build.
-
-## Build and install
-
-    git clone https://github.com/erentknn/snip-mac.git
-    cd snip-mac
-    ./build.sh --install    # builds, copies to /Applications and launches
-
-`./build.sh` alone builds `build/Snip.app` without installing.
+Get the latest `Snip-x.y.dmg` from [Releases](https://github.com/erentknn/snip-mac/releases/latest),
+open it, and drag Snip to Applications. It's signed and notarized, and runs on Apple Silicon and
+Intel Macs with macOS 14 (Sonoma) or later.
 
 On first capture, allow Snip under **System Settings → Privacy & Security → Screen & System
 Audio Recording**, then quit and reopen Snip. macOS also asks every few weeks whether Snip
 may "bypass the system private window picker". That's normal for any screenshot app that
 captures without a picker.
+
+## Build from source
+
+Requires Xcode or the Xcode Command Line Tools.
+
+    git clone https://github.com/erentknn/snip-mac.git
+    cd snip-mac
+    ./build.sh --install    # builds, copies to /Applications and launches
+
+`./build.sh` alone builds `build/Snip.app` without installing. `./release.sh` builds the
+signed and notarized `.dmg` (needs a Developer ID certificate).
 
 ### Code signing and the permission prompt
 
