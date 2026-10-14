@@ -22,16 +22,16 @@ NSColor.black.setFill()
 tile.fill()
 NSGraphicsContext.restoreGraphicsState()
 
-NSGradient(colors: [NSColor(srgbRed: 0.36, green: 0.42, blue: 1.00, alpha: 1),
-                    NSColor(srgbRed: 0.55, green: 0.24, blue: 0.93, alpha: 1)])!
-    .draw(in: tile, angle: -60)
+NSGradient(colors: [NSColor(srgbRed: 0.23, green: 0.61, blue: 1.00, alpha: 1),
+                    NSColor(srgbRed: 0.04, green: 0.36, blue: 0.85, alpha: 1)])!
+    .draw(in: tile, angle: -90)
 
 // Dashed selection rectangle.
 let selection = NSBezierPath(roundedRect: body.insetBy(dx: 150, dy: 150), xRadius: 36, yRadius: 36)
 selection.lineWidth = 30
 selection.lineCapStyle = .round
 selection.setLineDash([60, 52], count: 2, phase: 0)
-NSColor.white.withAlphaComponent(0.55).setStroke()
+NSColor.white.withAlphaComponent(0.6).setStroke()
 selection.stroke()
 
 // Scissors glyph, centered.

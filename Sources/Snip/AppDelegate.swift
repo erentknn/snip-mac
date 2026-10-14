@@ -31,8 +31,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         set { UserDefaults.standard.set(newValue, forKey: Self.autoSaveKey) }
     }
 
+    // In the App Store build, Pictures is a symlink inside the app's container;
+    // resolve it so Finder and the save panel show the real ~/Pictures.
     nonisolated static var screenshotsFolder: URL {
         FileManager.default.urls(for: .picturesDirectory, in: .userDomainMask)[0]
+            .resolvingSymlinksInPath()
             .appendingPathComponent("Screenshots", isDirectory: true)
     }
 
@@ -40,6 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         UserDefaults.standard.register(defaults: [Self.autoSaveKey: true])
         setUpStatusItem()
         setUpMainMenu()
+        showWelcomeIfNeeded()
 
         let mods = optionKey | shiftKey
         hotKeys = [
@@ -51,6 +55,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if !CGPreflightScreenCaptureAccess() {
             CGRequestScreenCaptureAccess()
         }
+    }
+
+    /// Snip has no window of its own, so on first launch explain where it lives and how to use it.
+    private func showWelcomeIfNeeded() {
+        let key = "didShowWelcome"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        UserDefaults.standard.set(true, forKey: key)
+
+        let alert = NSAlert()
+        alert.messageText = "Snip is in your menu bar"
+        alert.informativeText = """
+            Look for the scissors icon at the top of the screen.
+
+            ⌥⇧S  Capture a region
+            ⌥⇧W  Capture a window
+            ⌥⇧F  Capture the full screen
+
+            Each capture is copied to the clipboard. Click the notification that appears to mark it up.
+
+            Snip needs Screen Recording permission, which macOS asks for next.
+            """
+        alert.addButton(withTitle: "Continue")
+        NSApp.activate(ignoringOtherApps: true)
+        alert.runModal()
     }
 
     // MARK: - Menu bar
