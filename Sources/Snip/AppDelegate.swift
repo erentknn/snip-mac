@@ -16,6 +16,7 @@ struct Shot {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private static let autoSaveKey = "autoSave"
+    private static let folderBookmarkKey = "screenshotsFolderBookmark"
 
     private var statusItem: NSStatusItem!
     private var hotKeys: [HotKey] = []
@@ -25,22 +26,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var autoSaveItem: NSMenuItem!
     private var launchAtLoginItem: NSMenuItem!
     private var openLastItem: NSMenuItem!
+    private var openFolderItem: NSMenuItem!
 
+    /// Auto-save only counts as on once the user has chosen a folder.
     private var autoSave: Bool {
-        get { UserDefaults.standard.bool(forKey: Self.autoSaveKey) }
+        get { Self.screenshotsFolder != nil && UserDefaults.standard.bool(forKey: Self.autoSaveKey) }
         set { UserDefaults.standard.set(newValue, forKey: Self.autoSaveKey) }
     }
 
-    // In the App Store build, Pictures is a symlink inside the app's container;
-    // resolve it so Finder and the save panel show the real ~/Pictures.
-    nonisolated static var screenshotsFolder: URL {
-        FileManager.default.urls(for: .picturesDirectory, in: .userDomainMask)[0]
-            .resolvingSymlinksInPath()
-            .appendingPathComponent("Screenshots", isDirectory: true)
-    }
+    /// The folder the user chose for auto-saved screenshots. The App Store build is sandboxed,
+    /// so access comes from a security-scoped bookmark and stays open while Snip runs.
+    /// Only touched on the main thread.
+    nonisolated(unsafe) private(set) static var screenshotsFolder: URL?
+    private var isAccessingFolder = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         UserDefaults.standard.register(defaults: [Self.autoSaveKey: true])
+        restoreScreenshotsFolder()
         setUpStatusItem()
         setUpMainMenu()
         showWelcomeIfNeeded()
@@ -73,6 +75,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             ⌥⇧F  Capture the full screen
 
             Each capture is copied to the clipboard. Click the notification that appears to mark it up.
+            To also save every capture to a folder, turn on Auto-save from the menu bar icon.
 
             Snip needs Screen Recording permission, which macOS asks for next.
             """
@@ -98,9 +101,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         openLastItem = item("Open Last Screenshot", action: #selector(openLast))
         menu.addItem(openLastItem)
         menu.addItem(.separator())
-        autoSaveItem = item("Auto-save to Pictures/Screenshots", action: #selector(toggleAutoSave))
+        autoSaveItem = item("Auto-save Screenshots", action: #selector(toggleAutoSave))
         menu.addItem(autoSaveItem)
-        menu.addItem(item("Open Screenshots Folder", action: #selector(openFolder)))
+        menu.addItem(item("Choose Screenshots Folder…", action: #selector(chooseFolderFromMenu)))
+        openFolderItem = item("Open Screenshots Folder", action: #selector(openFolder))
+        menu.addItem(openFolderItem)
         launchAtLoginItem = item("Launch at Login", action: #selector(toggleLaunchAtLogin))
         menu.addItem(launchAtLoginItem)
         menu.addItem(.separator())
@@ -118,8 +123,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         autoSaveItem.state = autoSave ? .on : .off
+        autoSaveItem.title = Self.screenshotsFolder.map { "Auto-save to \($0.lastPathComponent)" }
+            ?? "Auto-save Screenshots"
         launchAtLoginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
         openLastItem.isEnabled = lastShot != nil
+        openFolderItem.isEnabled = Self.screenshotsFolder != nil
     }
 
     @objc private func captureRegion() { capture(.region) }
@@ -131,12 +139,60 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         openEditor(lastShot)
     }
 
-    @objc private func toggleAutoSave() { autoSave.toggle() }
+    // Turning auto-save on asks for a folder first if none has been chosen yet.
+    @objc private func toggleAutoSave() {
+        if autoSave {
+            autoSave = false
+        } else if Self.screenshotsFolder != nil || chooseFolder() {
+            autoSave = true
+        }
+    }
+
+    @objc private func chooseFolderFromMenu() {
+        if chooseFolder() { autoSave = true }
+    }
 
     @objc private func openFolder() {
-        let folder = Self.screenshotsFolder
-        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        guard let folder = Self.screenshotsFolder else { return }
         NSWorkspace.shared.open(folder)
+    }
+
+    // MARK: - Screenshots folder
+
+    /// Asks the user for the auto-save folder and remembers it. Returns whether one was chosen.
+    private func chooseFolder() -> Bool {
+        let panel = NSOpenPanel()
+        panel.message = "Choose where Snip saves your screenshots."
+        panel.prompt = "Choose"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        // In the App Store build, Pictures is a symlink inside the app's container;
+        // resolve it so the panel opens in the real ~/Pictures.
+        panel.directoryURL = Self.screenshotsFolder
+            ?? FileManager.default.urls(for: .picturesDirectory, in: .userDomainMask)[0].resolvingSymlinksInPath()
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let url = panel.url else { return false }
+        useScreenshotsFolder(url, saveBookmark: true)
+        return true
+    }
+
+    private func restoreScreenshotsFolder() {
+        guard let data = UserDefaults.standard.data(forKey: Self.folderBookmarkKey) else { return }
+        var isStale = false
+        guard let url = try? URL(resolvingBookmarkData: data, options: .withSecurityScope,
+                                 relativeTo: nil, bookmarkDataIsStale: &isStale) else { return }
+        useScreenshotsFolder(url, saveBookmark: isStale)
+    }
+
+    private func useScreenshotsFolder(_ url: URL, saveBookmark: Bool) {
+        if isAccessingFolder { Self.screenshotsFolder?.stopAccessingSecurityScopedResource() }
+        isAccessingFolder = url.startAccessingSecurityScopedResource()
+        Self.screenshotsFolder = url
+        if saveBookmark, let data = try? url.bookmarkData(options: .withSecurityScope,
+                                                          includingResourceValuesForKeys: nil, relativeTo: nil) {
+            UserDefaults.standard.set(data, forKey: Self.folderBookmarkKey)
+        }
     }
 
     @objc private func toggleLaunchAtLogin() {
@@ -172,10 +228,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         Clipboard.copy(rep)
         var fileURL: URL?
-        if autoSave {
-            let folder = Self.screenshotsFolder
+        if autoSave, let folder = Self.screenshotsFolder {
             let url = folder.appendingPathComponent("\(name).png")
-            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             if (try? data.write(to: url)) != nil { fileURL = url }
         }
         let shot = Shot(rep: rep, name: name, fileURL: fileURL)

@@ -25,7 +25,7 @@ Snip is a small native menu-bar app (Swift, AppKit, ScreenCaptureKit) with no de
 - **Window capture** grabs a window on its own, even when other windows overlap it.
 - **Editor:** pen, highlighter, arrow, rectangle and crop (keys 1–5), color, stroke width,
   undo/redo, Copy, Save, Share and Delete. Every edit is copied to the clipboard automatically.
-- **Auto-save** to `~/Pictures/Screenshots` (can be turned off), and launch at login.
+- **Auto-save** to a folder you choose (optional), and launch at login.
 
 | Shortcut | Action |
 |---|---|
