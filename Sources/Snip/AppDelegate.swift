@@ -94,6 +94,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let menu = NSMenu()
         menu.delegate = self
+        // menuNeedsUpdate sets isEnabled itself; auto-enabling would ignore it.
+        menu.autoenablesItems = false
         menu.addItem(item("Capture Region", key: "s", action: #selector(captureRegion)))
         menu.addItem(item("Capture Window", key: "w", action: #selector(captureWindow)))
         menu.addItem(item("Capture Full Screen", key: "f", action: #selector(captureFullScreen)))
